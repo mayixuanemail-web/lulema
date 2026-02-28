@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+
+    <!-- Glassmorphism Colors - Dark Mode -->
+    <!-- 背景改为深灰色半透明，让文字（白色）能看清，同时保持通透感 -->
+    <color name="glass_background">#D91C1B1F</color> <!-- 约85% 不透明度的深灰黑色 (Surface Color) -->
+
+    <!-- 边框改为低透明度的白色，在深色背景上形成微弱反光 -->
+    <color name="glass_stroke">#26FFFFFF</color>     <!-- 15% White -->
+
+    <color name="glass_stroke_dark">#1AFFFFFF</color> <!-- 更淡的白色 -->
+</resources>
