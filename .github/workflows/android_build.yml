@@ -55,3 +55,28 @@ jobs:
           app/build/outputs/apk/debug/app-debug.apk
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Sync Release to Gitee
+      if: github.event_name == 'push'
+      env:
+        GITEE_TOKEN: 0663baeb420216e2d8b069b619cd4cf1
+        GITEE_REPO: mayixuanemail-web/lulema
+        GITEE_OWNER: mayixuanemail-web
+        TAG_NAME: v1.0.${{ github.run_number }}
+      run: |
+        # 获取 Release 信息
+        RELEASE_NAME="Release v1.0.${{ github.run_number }}"
+        RELEASE_BODY="自动同步自 GitHub Release。"
+        # 上传 APK 到 Gitee Release
+        # 1. 创建 Release
+        curl -X POST "https://gitee.com/api/v5/repos/$GITEE_REPO/releases" \
+          -H "Content-Type: application/json" \
+          -d '{
+            "access_token": "'$GITEE_TOKEN'",
+            "tag_name": "'$TAG_NAME'",
+            "name": "'$RELEASE_NAME'",
+            "body": "'$RELEASE_BODY'",
+            "prerelease": false
+          }'
+        # 2. 上传 APK 附件（需先将 APK 上传到公开可访问的 URL 或 OSS，或用 Gitee Release 附件 API）
+        # 这里只同步 Release 元数据，附件上传需额外处理。

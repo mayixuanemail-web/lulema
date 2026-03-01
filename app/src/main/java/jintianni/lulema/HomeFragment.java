@@ -57,6 +57,11 @@ public class HomeFragment extends Fragment {
     private SoundPool soundPool;
     private int soundId;
 
+    private TextView progressTarget;
+    private android.widget.Button btnSetTarget;
+    private static final String KEY_TARGET = "target_count";
+    private int todayTarget = 10; // 默认目标
+
     @Nullable
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
@@ -66,11 +71,14 @@ public class HomeFragment extends Fragment {
 
         tvDate = view.findViewById(R.id.tvDate);
         tvTodayCount = view.findViewById(R.id.tvTodayCount);
-        // etCount已移除
         rvHistory = view.findViewById(R.id.rvHistory);
         btnCheckIn = view.findViewById(R.id.btnCheckIn);
         btnSetReminder = view.findViewById(R.id.btnSetReminder);
-
+        // 新增目标相关
+        progressTarget = view.findViewById(R.id.progressTarget);
+        btnSetTarget = view.findViewById(R.id.btnSetTarget);
+        // 读取目标
+        todayTarget = sharedPreferences.getInt(KEY_TARGET, 10);
         today = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(new Date());
         tvDate.setText(today);
 
@@ -79,6 +87,8 @@ public class HomeFragment extends Fragment {
 
         btnCheckIn.setOnClickListener(v -> handleCheckIn());
         btnSetReminder.setOnClickListener(v -> showTimePickerDialog());
+        // 设置目标按钮监听
+        btnSetTarget.setOnClickListener(v -> showSetTargetDialog());
 
         // Initialize SoundPool
         android.media.AudioAttributes audioAttributes = new android.media.AudioAttributes.Builder()
@@ -179,17 +189,11 @@ public class HomeFragment extends Fragment {
 
     // 修改原来从输入框读取的逻辑，改为固定加1
     private void saveTodayCount() {
-        // String countStr = etCount.getText().toString(); // Removed
-        int addCount = 1; // Fixed increment
-
-        // 使用包含时分秒的Key来作为历史记录的唯一标识，这样每次点击都会是一条新记录
+        int addCount = 1;
         String key = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(new Date());
         sharedPreferences.edit().putInt(key, addCount).apply();
-
-        // Toast.makeText(getContext(), "保存成功", Toast.LENGTH_SHORT).show(); // Optional feedback
-
         loadHistory();
-        updateTodayCount();
+        updateTodayCount(); // 新增：同步刷新目标进度
     }
 
     @Override
@@ -225,6 +229,51 @@ public class HomeFragment extends Fragment {
         }
     }
 
+    // 新增：弹窗设置目标
+    private void showSetTargetDialog() {
+        android.app.AlertDialog.Builder builder = new android.app.AlertDialog.Builder(getContext());
+        builder.setTitle("设置今日目标");
+        final android.widget.EditText input = new android.widget.EditText(getContext());
+        input.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        input.setHint("请输入目标次数");
+        input.setText(String.valueOf(todayTarget));
+        builder.setView(input);
+        builder.setPositiveButton("确定", (dialog, which) -> {
+            String val = input.getText().toString().trim();
+            if (!val.isEmpty()) {
+                int t = Integer.parseInt(val);
+                if (t > 0) {
+                    todayTarget = t;
+                    sharedPreferences.edit().putInt(KEY_TARGET, todayTarget).apply();
+                    updateProgressTarget();
+                } else {
+                    Toast.makeText(getContext(), "目标需大于0", Toast.LENGTH_SHORT).show();
+                }
+            }
+        });
+        builder.setNegativeButton("取消", null);
+        builder.show();
+    }
+
+    // 新增：刷新目标进度显示
+    private void updateProgressTarget() {
+        int todayCount = getTodayCount();
+        progressTarget.setText(todayCount + "/" + todayTarget);
+    }
+
+    // 新增：获取今日累计
+    private int getTodayCount() {
+        String todayPrefix = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(new Date());
+        Map<String, ?> all = sharedPreferences.getAll();
+        int totalToday = 0;
+        for (Map.Entry<String, ?> entry : all.entrySet()) {
+            if (entry.getKey().startsWith(todayPrefix) && entry.getValue() instanceof Integer && !entry.getKey().equals("custom_bg_uri")) {
+                totalToday += (Integer) entry.getValue();
+            }
+        }
+        return totalToday;
+    }
+
     private void updateTodayCount() {
         String todayPrefix = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(new Date());
         Map<String, ?> all = sharedPreferences.getAll();
@@ -236,6 +285,7 @@ public class HomeFragment extends Fragment {
             }
         }
         tvTodayCount.setText("今日起飞 " + totalToday + " 次");
+        updateProgressTarget(); // 新增：同步刷新目标进度
     }
 
     private static class SimpleEntry implements java.util.Map.Entry<String, Integer> {
