@@ -18,9 +18,9 @@ jobs:
 
       - name: Sync Release to Gitee
         env:
-          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
-          GITEE_REPO: ${{ secrets.GITEE_REPO }}
-          GITEE_OWNER: ${{ secrets.GITEE_OWNER }}
+          GITEE_TOKEN: 0663baeb420216e2d8b069b619cd4cf1
+          GITEE_REPO: mayixuanemail-web/lulema
+          GITEE_OWNER: mayixuanemail-web
           RELEASE_TAG: ${{ github.event.release.tag_name }}
           RELEASE_NAME: ${{ github.event.release.name }}
           RELEASE_BODY: ${{ github.event.release.body }}
@@ -34,3 +34,19 @@ jobs:
               \"name\": \"${RELEASE_NAME}\",
               \"body\": \"${RELEASE_BODY}\"
             }"
+
+      - name: Upload Release Assets to Gitee
+        env:
+          GITEE_TOKEN: 0663baeb420216e2d8b069b619cd4cf1
+          GITEE_REPO: mayixuanemail-web/lulema
+          GITEE_OWNER: mayixuanemail-web
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          for file in ./release-assets/*; do
+            curl -X POST "https://gitee.com/api/v5/repos/${GITEE_OWNER}/${GITEE_REPO}/releases/assets" \
+              -H "Content-Type: multipart/form-data" \
+              -F "access_token=${GITEE_TOKEN}" \
+              -F "tag_name=${RELEASE_TAG}" \
+              -F "name=$(basename $file)" \
+              -F "attachment=@$file";
+          done
