@@ -30,6 +30,14 @@ import com.google.android.material.card.MaterialCardView;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.snackbar.Snackbar;
 
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
+
 public class SettingsFragment extends Fragment {
 
     private static final int REQUEST_CODE_PERMISSION = 1002;
@@ -70,15 +78,7 @@ public class SettingsFragment extends Fragment {
             tvVersion.setText("当前版本：未知");
         }
 
-        cardCheckUpdate.setOnClickListener(v -> {
-            Toast.makeText(getContext(), "正在检查更新...", Toast.LENGTH_SHORT).show();
-            // 模拟检查过程
-            v.postDelayed(() -> {
-                if (getContext() != null) {
-                    Toast.makeText(getContext(), "当前已是最新版本", Toast.LENGTH_SHORT).show();
-                }
-            }, 1000);
-        });
+        cardCheckUpdate.setOnClickListener(v -> checkUpdate());
 
         // 在 SettingsFragment 中添加 Pin Widget 逻辑
         MaterialCardView cardPinWidget = view.findViewById(R.id.cardPinWidget); // Need to add to XML
@@ -201,6 +201,98 @@ public class SettingsFragment extends Fragment {
                 })
                 .setNegativeButton("取消", null)
                 .show();
+    }
+
+    private void checkUpdate() {
+        Toast.makeText(getContext(), "正在检查更新...", Toast.LENGTH_SHORT).show();
+        new Thread(() -> {
+            try {
+                // Replace with your actual repo
+                URL url = new URL("https://api.github.com/repos/mayixuanemail-web/lulema/releases/latest");
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("GET");
+                conn.setConnectTimeout(5000);
+                conn.setReadTimeout(5000);
+
+                if (conn.getResponseCode() == 200) {
+                    BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+                    StringBuilder response = new StringBuilder();
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        response.append(line);
+                    }
+                    reader.close();
+
+                    JSONObject jsonResponse = new JSONObject(response.toString());
+                    String tagName = jsonResponse.getString("tag_name"); // e.g. v1.0.5
+
+                    // Parse download URL for the apk
+                    String downloadUrl = "";
+                    JSONArray assets = jsonResponse.getJSONArray("assets");
+                    if (assets.length() > 0) {
+                        for (int i = 0; i < assets.length(); i++) {
+                            JSONObject asset = assets.getJSONObject(i);
+                            if (asset.getString("name").endsWith(".apk")) {
+                                downloadUrl = asset.getString("browser_download_url");
+                                // 使用加速镜像 (ghproxy.net)
+                                // 注意：清华镜像源 (TUNA) 主要收录知名开源项目，个人项目无法直接使用 TUNA 下载 Release。
+                                // 这里使用 ghproxy.net 作为替代，它在网络受限环境下提供良好的加速效果。
+                                downloadUrl = "https://mirror.ghproxy.com/" + downloadUrl;
+                                break;
+                            }
+                        }
+                    } else {
+                        // Fallback to html url if no assets
+                        downloadUrl = jsonResponse.getString("html_url");
+                    }
+
+                    final String finalDownloadUrl = downloadUrl;
+                    final String finalTagName = tagName;
+
+                    if (getActivity() != null) {
+                        getActivity().runOnUiThread(() -> showUpdateDialog(finalTagName, finalDownloadUrl));
+                    }
+                } else {
+                    if (getActivity() != null) {
+                        getActivity().runOnUiThread(() -> Toast.makeText(getContext(), "检查失败: " + conn.getResponseCode(), Toast.LENGTH_SHORT).show());
+                    }
+                }
+            } catch (Exception e) {
+                if (getActivity() != null) {
+                    getActivity().runOnUiThread(() -> Toast.makeText(getContext(), "检查出错: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+                }
+            }
+        }).start();
+    }
+
+    private void showUpdateDialog(String latestVersion, String downloadUrl) {
+        String currentVersion = "";
+        try {
+            currentVersion = requireContext().getPackageManager().getPackageInfo(requireContext().getPackageName(), 0).versionName;
+        } catch (PackageManager.NameNotFoundException e) {
+            currentVersion = "1.0.0";
+        }
+
+        // Simple version comparison: if strings not equal
+        // Ideally parse v1.0.5 -> 1.0.5 and compare numbers, but string check is basic start
+        // Assuming tag_name format is "v1.0.X" and versionName is "1.0.X"
+        String cleanLatest = latestVersion.replace("v", "");
+
+        if (!cleanLatest.equals(currentVersion)) {
+             new MaterialAlertDialogBuilder(requireContext())
+                .setTitle("发现新版本 " + latestVersion)
+                .setMessage("当前版本: " + currentVersion + "\n\n因为是起飞，所以要飞得更高！快来更新体验新功能吧。")
+                .setPositiveButton("去下载", (dialog, which) -> {
+                    if (!TextUtils.isEmpty(downloadUrl)) {
+                        Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(downloadUrl));
+                        startActivity(intent);
+                    }
+                })
+                .setNegativeButton("暂不", null)
+                .show();
+        } else {
+            Toast.makeText(getContext(), "当前已是最新版本", Toast.LENGTH_SHORT).show();
+        }
     }
 
     private void updateThemeText() {
