@@ -10,8 +10,23 @@
         android:layout_height="wrap_content"
         android:orientation="vertical"
         android:padding="16dp"
+        android:paddingTop="150dp"
         android:paddingBottom="100dp">
 
+        <!-- Chart CardView -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="200dp"
+            android:layout_marginBottom="8dp"
+            style="@style/Widget.App.CardView.Glass">
+
+            <jintianni.lulema.LineChartView
+                android:id="@+id/chartView"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent" />
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Move the toggle button below the chart -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -32,19 +47,6 @@
                 android:minHeight="0dp"/>
 
         </LinearLayout>
-
-        <!-- 修复可能的高度冲突，确保 CardHeight 足够 -->
-        <com.google.android.material.card.MaterialCardView
-            android:layout_width="match_parent"
-            android:layout_height="250dp"
-            android:layout_marginBottom="24dp"
-            style="@style/Widget.App.CardView.Glass">
-
-            <jintianni.lulema.LineChartView
-                android:id="@+id/chartView"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent" />
-        </com.google.android.material.card.MaterialCardView>
 
         <TextView
             android:layout_width="wrap_content"

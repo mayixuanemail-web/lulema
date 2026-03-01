@@ -14,6 +14,7 @@
             android:layout_height="wrap_content"
             android:orientation="vertical"
             android:paddingHorizontal="16dp"
+            android:paddingTop="20dp"
             android:paddingBottom="80dp">
 
             <!-- 头部数据卡片 -->
@@ -37,7 +38,7 @@
                         android:layout_height="wrap_content"
                         android:alpha="0.7"
                         android:letterSpacing="0.05"
-                        android:text="2024-06-01"
+                        android:text="@string/date_placeholder"
                         android:textAppearance="@style/TextAppearance.Material3.TitleSmall" />
 
                     <TextView
@@ -45,7 +46,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="8dp"
-                        android:text="0"
+                        android:text="@string/zero"
                         android:textAppearance="@style/TextAppearance.Material3.DisplayMedium"
                         android:textColor="?attr/colorPrimary"
                         android:textStyle="bold" />
@@ -54,9 +55,47 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="4dp"
-                        android:text="今日起飞次数"
+                        android:text="@string/today_flight_count"
                         android:textAppearance="@style/TextAppearance.Material3.BodyMedium" />
 
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- 环形进度条：起飞目标 -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="24dp"
+                style="@style/Widget.App.CardView.Glass">
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:gravity="center"
+                    android:padding="16dp">
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/today_target"
+                        android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
+                        android:textStyle="bold" />
+                    <!-- 替换 DonutProgress 为 TextView 占位，避免类找不到的报错 -->
+                    <TextView
+                        android:id="@+id/progressTarget"
+                        android:layout_width="120dp"
+                        android:layout_height="120dp"
+                        android:gravity="center"
+                        android:text="@string/progress_placeholder"
+                        android:textSize="18sp"
+                        android:textColor="@android:color/white"
+                        android:background="@android:color/transparent" />
+                    <Button
+                        android:id="@+id/btnSetTarget"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/set_target"
+                        android:layout_marginTop="8dp"
+                        android:textSize="14sp" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
@@ -67,7 +106,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="24dp"
                 android:minHeight="64dp"
-                android:text="我已起飞一次 🫎"
+                android:text="@string/check_in_btn"
                 android:textSize="18sp"
                 android:textStyle="bold"
                 android:textColor="?attr/colorPrimary"
@@ -85,15 +124,14 @@
                 android:layout_height="wrap_content"
                 android:layout_gravity="center_horizontal"
                 android:letterSpacing="0"
-                android:text="🕒 设置起飞提醒\n（该tmd起飞了）"
+                android:text="@string/set_reminder_btn"
                 android:textColor="?android:attr/textColorSecondary"
                 android:textSize="14sp" />
-
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="历史足迹"
+                android:text="@string/history"
                 android:layout_marginStart="8dp"
                 android:layout_marginBottom="12dp"
                 android:textAppearance="@style/TextAppearance.Material3.TitleMedium"

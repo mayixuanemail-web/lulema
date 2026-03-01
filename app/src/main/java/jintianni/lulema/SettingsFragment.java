@@ -12,6 +12,7 @@ import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.text.TextUtils;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -254,12 +255,17 @@ public class SettingsFragment extends Fragment {
                     }
                 } else {
                     if (getActivity() != null) {
-                        getActivity().runOnUiThread(() -> Toast.makeText(getContext(), "检查失败: " + conn.getResponseCode(), Toast.LENGTH_SHORT).show());
+                        try {
+                            int responseCode = conn.getResponseCode();
+                            getActivity().runOnUiThread(() -> Toast.makeText(getContext(), "无法连接更新服务器 (Code: " + responseCode + ")", Toast.LENGTH_SHORT).show());
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
                     }
                 }
             } catch (Exception e) {
                 if (getActivity() != null) {
-                    getActivity().runOnUiThread(() -> Toast.makeText(getContext(), "检查出错: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+                    getActivity().runOnUiThread(() -> Toast.makeText(getContext(), "网络请求失败，请检查网络设置或稍后再试", Toast.LENGTH_SHORT).show());
                 }
             }
         }).start();

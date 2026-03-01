@@ -1,3 +1,12 @@
 <resources>
     <string name="app_name">起飞记录器</string>
+    <string name="date_placeholder">2024-06-01</string>
+    <string name="zero">0</string>
+    <string name="today_flight_count">今日起飞次数</string>
+    <string name="today_target">今日目标</string>
+    <string name="progress_placeholder">0/10</string>
+    <string name="set_target">设置目标</string>
+    <string name="check_in_btn">我已起飞一次 🫎</string>
+    <string name="set_reminder_btn">🕒 设置起飞提醒\n（该tmd起飞了）</string>
+    <string name="history">历史足迹</string>
 </resources>

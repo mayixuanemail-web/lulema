@@ -43,25 +43,21 @@ public class MainActivity extends AppCompatActivity {
         int themeMode = prefs.getInt(PREF_THEME_MODE, AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM);
         // 应用主题
         AppCompatDelegate.setDefaultNightMode(themeMode);
-
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-
         // 自动检查并请求权限
         checkAndRequestPermissions();
-
         sharedPreferences = getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
-
         // 初始化 Views
         bgGradient = findViewById(R.id.bgGradient);
         viewPager = findViewById(R.id.viewPager);
         bottomNav = findViewById(R.id.bottomNav);
-
+        // 自动检查更新
+        HistoryAdapter.checkForUpdate(this);
         // Setup ViewPager2
         MainPagerAdapter pagerAdapter = new MainPagerAdapter(this);
         viewPager.setAdapter(pagerAdapter);
         viewPager.setUserInputEnabled(true); // 允许滑动切换，也可设为false只允许点击
-
         // ViewPager 页面切换监听，同步底部栏
         viewPager.registerOnPageChangeCallback(new ViewPager2.OnPageChangeCallback() {
             @Override
