@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [ "master", "main" ]
 
+# 增加权限配置，确保 GITHUB_TOKEN 有权限发版
+permissions:
+  contents: write
+
 jobs:
   build:
 
@@ -37,30 +41,17 @@ jobs:
         name: app-debug
         path: app/build/outputs/apk/debug/app-debug.apk
 
-    - name: Upload Release APK (Unsigned)
-      uses: actions/upload-artifact@v4
-      with:
-        name: app-release-unsigned
-        path: app/build/outputs/apk/release/app-release-unsigned.apk
-
-    - name: Create Release
-      id: create_release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    # 使用更现代的 Action 来发布 Release，并处理未签名 APK
+    - name: Release APK
+      uses: softprops/action-gh-release@v1
+      if: github.event_name == 'push' # 仅在 push 时发布，由 PR 触发时不发布
       with:
         tag_name: v1.0.${{ github.run_number }}
-        release_name: Release v1.0.${{ github.run_number }}
+        name: Release v1.0.${{ github.run_number }}
         draft: false
         prerelease: false
-
-    - name: Upload Release Asset
-      id: upload-release-asset
-      uses: actions/upload-release-asset@v1
+        files: |
+          app/build/outputs/apk/release/app-release-unsigned.apk
+          app/build/outputs/apk/debug/app-debug.apk
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: app/build/outputs/apk/release/app-release-unsigned.apk
-        asset_name: app-release-v1.0.${{ github.run_number }}.apk
-        asset_content_type: application/vnd.android.package-archive
