@@ -9,4 +9,7 @@
     <string name="check_in_btn">我已起飞一次 🫎</string>
     <string name="set_reminder_btn">🕒 设置起飞提醒\n（该tmd起飞了）</string>
     <string name="history">历史足迹</string>
+    <string name="target_prefix">目标：%1$d</string>
+    <string name="progress_format">%1$d/%2$d</string>
+    <string name="today_count_format">今日起飞 %1$d 次</string>
 </resources>

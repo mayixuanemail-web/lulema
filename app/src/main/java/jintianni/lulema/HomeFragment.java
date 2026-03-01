@@ -6,30 +6,27 @@ import android.app.TimePickerDialog;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.media.AudioAttributes;
 import android.media.SoundPool;
-import android.net.Uri;
 import android.os.Build;
+import android.os.Bundle;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
 import android.provider.Settings;
-import android.os.Bundle;
-import android.text.TextUtils;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.inputmethod.EditorInfo;
+import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
 import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
-import com.google.android.material.button.MaterialButton;
-import com.google.android.material.textfield.TextInputEditText;
+import com.google.android.material.slider.Slider;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -49,18 +46,22 @@ public class HomeFragment extends Fragment {
     private RecyclerView rvHistory;
     private HistoryAdapter adapter;
     private List<Map.Entry<String, Integer>> historyList = new ArrayList<>();
-    private TextView tvDate, tvTodayCount;
     private android.content.SharedPreferences sharedPreferences;
-    private String today;
     private static final String PREF_NAME = "word_record";
     private static final String KEY_LAST_CHECK_IN = "last_check_in_time";
     private SoundPool soundPool;
     private int soundId;
 
     private TextView progressTarget;
-    private android.widget.Button btnSetTarget;
+    private Slider seekBarTarget;
     private static final String KEY_TARGET = "target_count";
     private int todayTarget = 10; // 默认目标
+    private static final int TARGET_MIN = 1;
+    private static final int TARGET_MAX = 100;
+    private static final java.util.regex.Pattern HISTORY_KEY_PATTERN =
+            java.util.regex.Pattern.compile("\\d{4}-\\d{2}-\\d{2}\\s\\d{2}:\\d{2}:\\d{2}");
+    private static final int REMINDER_REQUEST_CODE = 2001;
+    private static final String KEY_TARGET_ACHIEVED_PREFIX = "target_achieved_"; // + yyyy-MM-dd
 
     @Nullable
     @Override
@@ -69,26 +70,52 @@ public class HomeFragment extends Fragment {
 
         sharedPreferences = requireActivity().getSharedPreferences(PREF_NAME, android.content.Context.MODE_PRIVATE);
 
-        tvDate = view.findViewById(R.id.tvDate);
-        tvTodayCount = view.findViewById(R.id.tvTodayCount);
         rvHistory = view.findViewById(R.id.rvHistory);
         btnCheckIn = view.findViewById(R.id.btnCheckIn);
         btnSetReminder = view.findViewById(R.id.btnSetReminder);
         // 新增目标相关
         progressTarget = view.findViewById(R.id.progressTarget);
-        btnSetTarget = view.findViewById(R.id.btnSetTarget);
-        // 读取目标
-        todayTarget = sharedPreferences.getInt(KEY_TARGET, 10);
-        today = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(new Date());
-        tvDate.setText(today);
+        seekBarTarget = view.findViewById(R.id.seekBarTarget);
+
+        int savedTarget = sharedPreferences.getInt(KEY_TARGET, 10);
+        todayTarget = Math.min(Math.max(savedTarget, TARGET_MIN), TARGET_MAX);
+        if (seekBarTarget != null) {
+            seekBarTarget.setValue(todayTarget);
+
+            seekBarTarget.addOnChangeListener((slider, value, fromUser) -> {
+                if (fromUser) {
+                    todayTarget = (int) value;
+                    updateProgressTarget();
+                }
+            });
+
+            seekBarTarget.addOnSliderTouchListener(new Slider.OnSliderTouchListener() {
+                @Override public void onStartTrackingTouch(@NonNull Slider slider) {}
+
+                @Override
+                public void onStopTrackingTouch(@NonNull Slider slider) {
+                    int value = (int) slider.getValue();
+                    if (value != todayTarget) {
+                        todayTarget = value;
+                    }
+                    sharedPreferences.edit().putInt(KEY_TARGET, todayTarget).apply();
+                    updateProgressTarget();
+
+                    // 新增：用户把目标调低到已达成时，也要触发一次恭喜
+                    maybeShowTargetAchievedDialog();
+                }
+            });
+        }
+
+        // btnSetTarget 不再使用（布局里已隐藏），避免误触
+        Button btnSetTarget = view.findViewById(R.id.btnSetTarget);
+        if (btnSetTarget != null) btnSetTarget.setOnClickListener(null);
 
         loadHistory();
         updateTodayCount();
 
         btnCheckIn.setOnClickListener(v -> handleCheckIn());
         btnSetReminder.setOnClickListener(v -> showTimePickerDialog());
-        // 设置目标按钮监听
-        btnSetTarget.setOnClickListener(v -> showSetTargetDialog());
 
         // Initialize SoundPool
         android.media.AudioAttributes audioAttributes = new android.media.AudioAttributes.Builder()
@@ -144,16 +171,21 @@ public class HomeFragment extends Fragment {
         }
 
         Intent intent = new Intent(requireContext(), ReminderReceiver.class);
-        PendingIntent pendingIntent = PendingIntent.getBroadcast(requireContext(), 0, intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        PendingIntent pendingIntent = PendingIntent.getBroadcast(
+                requireContext(),
+                REMINDER_REQUEST_CODE,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+        );
 
         AlarmManager alarmManager = (AlarmManager) requireContext().getSystemService(Context.ALARM_SERVICE);
         if (alarmManager != null) {
             try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, cal.getTimeInMillis(), pendingIntent);
-                } else {
-                    alarmManager.setExact(AlarmManager.RTC_WAKEUP, cal.getTimeInMillis(), pendingIntent);
-                }
+                // 先取消旧提醒，避免被系统/重复 PendingIntent 覆盖
+                alarmManager.cancel(pendingIntent);
+
+                alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, cal.getTimeInMillis(), pendingIntent);
+
                 Toast.makeText(getContext(), String.format(Locale.getDefault(), "已设置提醒： %02d:%02d", hour, minute), Toast.LENGTH_SHORT).show();
             } catch (SecurityException e) {
                 Toast.makeText(getContext(), "设置失败，请检查权限", Toast.LENGTH_SHORT).show();
@@ -185,6 +217,9 @@ public class HomeFragment extends Fragment {
 
         saveTodayCount();
         sharedPreferences.edit().putLong(KEY_LAST_CHECK_IN, now).apply();
+
+        // 新增：检查是否达成目标
+        maybeShowTargetAchievedDialog();
     }
 
     // 修改原来从输入框读取的逻辑，改为固定加1
@@ -193,7 +228,8 @@ public class HomeFragment extends Fragment {
         String key = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(new Date());
         sharedPreferences.edit().putInt(key, addCount).apply();
         loadHistory();
-        updateTodayCount(); // 新增：同步刷新目标进度
+        updateTodayCount();
+        // 不在这里弹窗，避免与冷却提示/其它提示冲突；由 handleCheckIn 统一触发
     }
 
     @Override
@@ -207,10 +243,8 @@ public class HomeFragment extends Fragment {
         Map<String, ?> all = sharedPreferences.getAll();
         historyList.clear();
         for (Map.Entry<String, ?> entry : all.entrySet()) {
-            // Filter out non-record keys and ensure value is Integer
-            // Also filter out any keys that don't look like dates if possible,
-            // but primarily filter 'last_check_in_time' which is Long, so instanceof Integer handles it.
-            if (entry.getValue() instanceof Integer) {
+            // 仅把真正的历史打卡记录加入列表：key 必须是时间戳格式 + value 必须是 Integer
+            if (entry.getValue() instanceof Integer && HISTORY_KEY_PATTERN.matcher(entry.getKey()).matches()) {
                 historyList.add(new SimpleEntry(entry.getKey(), (Integer) entry.getValue()));
             }
         }
@@ -229,36 +263,14 @@ public class HomeFragment extends Fragment {
         }
     }
 
-    // 新增：弹窗设置目标
-    private void showSetTargetDialog() {
-        android.app.AlertDialog.Builder builder = new android.app.AlertDialog.Builder(getContext());
-        builder.setTitle("设置今日目标");
-        final android.widget.EditText input = new android.widget.EditText(getContext());
-        input.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
-        input.setHint("请输入目标次数");
-        input.setText(String.valueOf(todayTarget));
-        builder.setView(input);
-        builder.setPositiveButton("确定", (dialog, which) -> {
-            String val = input.getText().toString().trim();
-            if (!val.isEmpty()) {
-                int t = Integer.parseInt(val);
-                if (t > 0) {
-                    todayTarget = t;
-                    sharedPreferences.edit().putInt(KEY_TARGET, todayTarget).apply();
-                    updateProgressTarget();
-                } else {
-                    Toast.makeText(getContext(), "目标需大于0", Toast.LENGTH_SHORT).show();
-                }
-            }
-        });
-        builder.setNegativeButton("取消", null);
-        builder.show();
-    }
 
-    // 新增：刷新目标进度显示
+    // 删除/不再使用 showSetTargetDialog()
+    // ...existing code...
+
+    // 新增：刷新目标进度
     private void updateProgressTarget() {
         int todayCount = getTodayCount();
-        progressTarget.setText(todayCount + "/" + todayTarget);
+        progressTarget.setText(getString(R.string.progress_format, todayCount, todayTarget));
     }
 
     // 新增：获取今日累计
@@ -281,11 +293,32 @@ public class HomeFragment extends Fragment {
 
         for (Map.Entry<String, ?> entry : all.entrySet()) {
             if (entry.getKey().startsWith(todayPrefix) && entry.getValue() instanceof Integer && !entry.getKey().equals("custom_bg_uri")) {
-                 totalToday += (Integer) entry.getValue();
+                totalToday += (Integer) entry.getValue();
             }
         }
-        tvTodayCount.setText("今日起飞 " + totalToday + " 次");
-        updateProgressTarget(); // 新增：同步刷新目标进度
+
+        updateProgressTarget();
+    }
+
+    private void maybeShowTargetAchievedDialog() {
+        if (!isAdded()) return;
+
+        int todayCount = getTodayCount();
+        if (todayTarget <= 0) return;
+        if (todayCount < todayTarget) return;
+
+        String todayPrefix = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(new Date());
+        String achievedKey = KEY_TARGET_ACHIEVED_PREFIX + todayPrefix;
+        boolean alreadyShown = sharedPreferences.getBoolean(achievedKey, false);
+        if (alreadyShown) return;
+
+        sharedPreferences.edit().putBoolean(achievedKey, true).apply();
+
+        new AlertDialog.Builder(requireContext())
+                .setTitle("恭喜达成目标")
+                .setMessage("今天已完成 " + todayCount + "/" + todayTarget + "！继续保持～")
+                .setPositiveButton("好耶", null)
+                .show();
     }
 
     private static class SimpleEntry implements java.util.Map.Entry<String, Integer> {

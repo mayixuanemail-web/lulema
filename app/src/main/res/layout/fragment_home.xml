@@ -17,85 +17,60 @@
             android:paddingTop="20dp"
             android:paddingBottom="80dp">
 
-            <!-- 头部数据卡片 -->
-            <com.google.android.material.card.MaterialCardView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                android:layout_marginBottom="24dp"
-                style="@style/Widget.App.CardView.Glass">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:gravity="center"
-                    android:orientation="vertical"
-                    android:padding="24dp">
-
-                    <TextView
-                        android:id="@+id/tvDate"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:alpha="0.7"
-                        android:letterSpacing="0.05"
-                        android:text="@string/date_placeholder"
-                        android:textAppearance="@style/TextAppearance.Material3.TitleSmall" />
-
-                    <TextView
-                        android:id="@+id/tvTodayCount"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
-                        android:text="@string/zero"
-                        android:textAppearance="@style/TextAppearance.Material3.DisplayMedium"
-                        android:textColor="?attr/colorPrimary"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
-                        android:text="@string/today_flight_count"
-                        android:textAppearance="@style/TextAppearance.Material3.BodyMedium" />
-
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
 
             <!-- 环形进度条：起飞目标 -->
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="24dp"
+                android:layout_marginBottom="12dp"
                 style="@style/Widget.App.CardView.Glass">
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
                     android:gravity="center"
-                    android:padding="16dp">
+                    android:padding="8dp">
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="@string/today_target"
                         android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
                         android:textStyle="bold" />
-                    <!-- 替换 DonutProgress 为 TextView 占位，避免类找不到的报错 -->
+
                     <TextView
                         android:id="@+id/progressTarget"
-                        android:layout_width="120dp"
-                        android:layout_height="120dp"
+                        android:layout_width="92dp"
+                        android:layout_height="92dp"
+                        android:layout_marginTop="4dp"
                         android:gravity="center"
                         android:text="@string/progress_placeholder"
-                        android:textSize="18sp"
+                        android:textSize="22sp"
+                        android:textStyle="bold"
                         android:textColor="@android:color/white"
                         android:background="@android:color/transparent" />
+
+                    <com.google.android.material.slider.Slider
+                        android:id="@+id/seekBarTarget"
+                        style="@style/Widget.App.Slider.Square"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="0dp"
+                        android:valueFrom="1"
+                        android:valueTo="100"
+                        android:stepSize="1"
+                        android:value="10"
+                        app:trackColorActive="?attr/colorPrimary"
+                        app:trackColorInactive="#40FFFFFF" />
+
+                    <!-- 保留原按钮但隐藏，避免其它地方引用 id 崩溃 -->
                     <Button
                         android:id="@+id/btnSetTarget"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="@string/set_target"
-                        android:layout_marginTop="8dp"
-                        android:textSize="14sp" />
+                        android:layout_marginTop="4dp"
+                        android:textSize="14sp"
+                        android:visibility="gone" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 

@@ -1,9 +1,7 @@
 package jintianni.lulema;
 
-import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
-import android.content.DialogInterface;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.LayoutInflater;
@@ -89,14 +87,14 @@ public class HistoryAdapter extends RecyclerView.Adapter<HistoryAdapter.ViewHold
     }
 
     public static void checkForUpdate(final Context context) {
-        // 使用清华源作为更新链接
+        // 使用 Gitee Releases 作为更新链接
         new Handler(Looper.getMainLooper()).postDelayed(() -> {
             AlertDialog.Builder builder = new AlertDialog.Builder(context);
             builder.setTitle("发现新版本")
                     .setMessage("检测到有新版本可用，是否前往更新？")
                     .setPositiveButton("去更新", (dialog, which) -> {
-                        // 清华源APK下载链接（请替换为实际APK路径）
-                        String updateUrl = "https://mirrors.tuna.tsinghua.edu.cn/github-release/mayixuanemail-web/lulema/";
+                        String updateUrl = "https://gitee.com/mayixuanemail-web/lulema/releases";
+                        // TODO: 如需直接跳转，可打开浏览器
                         // Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(updateUrl));
                         // context.startActivity(intent);
                     })

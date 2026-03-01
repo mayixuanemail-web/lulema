@@ -1,4 +1,4 @@
-<resources xmlns:tools="http://schemas.android.com/tools">
+<resources>
     <!-- Base application theme. -->
     <style name="Base.Theme.起飞记录器" parent="Theme.Material3.DayNight.NoActionBar">
         <!-- Customize your light theme here. -->
@@ -16,5 +16,13 @@
         <item name="cardCornerRadius">16dp</item>
         <item name="android:clickable">true</item>
         <item name="android:focusable">true</item>
+    </style>
+
+    <!-- Square Slider Style -->
+    <style name="Widget.App.Slider.Square" parent="Widget.Material3.Slider">
+        <item name="trackThickness">6dp</item>
+        <item name="haloColor">?attr/colorPrimary</item>
+        <item name="haloRadius">16dp</item>
+        <item name="labelBehavior">gone</item>
     </style>
 </resources>

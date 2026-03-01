@@ -2,7 +2,6 @@ package jintianni.lulema;
 
 import android.Manifest;
 import android.app.Activity;
-import android.app.PendingIntent;
 import android.appwidget.AppWidgetManager;
 import android.content.ComponentName;
 import android.content.Context;
@@ -23,7 +22,6 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatDelegate;
-import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 
@@ -209,7 +207,7 @@ public class SettingsFragment extends Fragment {
         new Thread(() -> {
             try {
                 // Replace with your actual repo
-                URL url = new URL("https://api.github.com/repos/mayixuanemail-web/lulema/releases/latest");
+                URL url = new URL("https://gitee.com/api/v5/repos/mayixuanemail-web/lulema/releases/latest");
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 conn.setRequestMethod("GET");
                 conn.setConnectTimeout(5000);
@@ -225,26 +223,33 @@ public class SettingsFragment extends Fragment {
                     reader.close();
 
                     JSONObject jsonResponse = new JSONObject(response.toString());
-                    String tagName = jsonResponse.getString("tag_name"); // e.g. v1.0.5
+                    String tagName = jsonResponse.optString("tag_name", "");
 
-                    // Parse download URL for the apk
+                    // Gitee：assets 字段通常是数组，包含附件信息
                     String downloadUrl = "";
-                    JSONArray assets = jsonResponse.getJSONArray("assets");
-                    if (assets.length() > 0) {
+                    JSONArray assets = jsonResponse.optJSONArray("assets");
+                    if (assets != null && assets.length() > 0) {
                         for (int i = 0; i < assets.length(); i++) {
                             JSONObject asset = assets.getJSONObject(i);
-                            if (asset.getString("name").endsWith(".apk")) {
-                                downloadUrl = asset.getString("browser_download_url");
-                                // 使用加速镜像 (ghproxy.net)
-                                // 注意：清华镜像源 (TUNA) 主要收录知名开源项目，个人项目无法直接使用 TUNA 下载 Release。
-                                // 这里使用 ghproxy.net 作为替代，它在网络受限环境下提供良好的加速效果。
-                                downloadUrl = "https://mirror.ghproxy.com/" + downloadUrl;
+                            String name = asset.optString("name", "");
+                            if (name.endsWith(".apk")) {
+                                // 常见字段：browser_download_url
+                                downloadUrl = asset.optString("browser_download_url", "");
+                                if (downloadUrl.isEmpty()) {
+                                    // 兼容字段：url
+                                    downloadUrl = asset.optString("url", "");
+                                }
                                 break;
                             }
                         }
-                    } else {
-                        // Fallback to html url if no assets
-                        downloadUrl = jsonResponse.getString("html_url");
+                    }
+
+                    if (downloadUrl.isEmpty()) {
+                        // 回落到发布页
+                        downloadUrl = jsonResponse.optString("html_url", "");
+                        if (downloadUrl.isEmpty()) {
+                            downloadUrl = "https://gitee.com/mayixuanemail-web/lulema/releases";
+                        }
                     }
 
                     final String finalDownloadUrl = downloadUrl;
