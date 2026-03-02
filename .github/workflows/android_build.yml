@@ -88,6 +88,20 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Push tag to Gitee
+        if: github.event_name == 'push'
+        env:
+          GITEE_USER: ${{ secrets.GITEE_USER }}
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+          GITEE_REPO: ${{ secrets.GITEE_REPO }}
+          TAG_NAME: v1.0.${{ github.run_number }}
+        run: |
+          git config --global user.email "ci-bot@example.com"
+          git config --global user.name "ci-bot"
+          git remote add gitee https://$GITEE_USER:$GITEE_TOKEN@gitee.com/$GITEE_USER/$GITEE_REPO.git
+          git fetch origin $TAG_NAME --tags
+          git push gitee $TAG_NAME --tags
+
       - name: Sync Release to Gitee
         if: github.event_name == 'push'
         env:
