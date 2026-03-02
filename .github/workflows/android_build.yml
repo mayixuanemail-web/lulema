@@ -43,6 +43,10 @@ jobs:
           echo "Keystore written to $HOME/keystore/release.jks"
           ls -l "$HOME/keystore/release.jks"
 
+      - name: Export ANDROID_KEYSTORE_PATH
+        if: github.event_name == 'push'
+        run: echo "ANDROID_KEYSTORE_PATH=$HOME/keystore/release.jks" >> $GITHUB_ENV
+
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
@@ -52,7 +56,6 @@ jobs:
       - name: Build Release APK (Signed)
         if: github.event_name == 'push'
         env:
-          ANDROID_KEYSTORE_PATH: ${{ runner.home }}/keystore/release.jks
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
