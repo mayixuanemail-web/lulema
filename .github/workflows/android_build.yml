@@ -120,7 +120,13 @@ jobs:
           TAG_NAME="v1.0.${{ github.run_number }}"
           FILE_NAME="app-release.apk"
           # 获取 release_id
-          RELEASE_ID=$(curl -s "https://gitee.com/api/v5/repos/mayixuanemail-web/lulema/releases/tags/$TAG_NAME?access_token=$GITEE_TOKEN" | jq -r '.id')
+          RELEASE_JSON=$(curl -s "https://gitee.com/api/v5/repos/mayixuanemail-web/lulema/releases/tags/$TAG_NAME?access_token=$GITEE_TOKEN")
+          echo "Gitee API response: $RELEASE_JSON"
+          if ! echo "$RELEASE_JSON" | jq . >/dev/null 2>&1; then
+            echo "Gitee API did not return valid JSON, aborting."
+            exit 1
+          fi
+          RELEASE_ID=$(echo "$RELEASE_JSON" | jq -r '.id')
           if [ "$RELEASE_ID" = "null" ] || [ -z "$RELEASE_ID" ]; then
             COMMIT_ID=$(git rev-parse HEAD)
             CREATE_RES=$(curl -s -X POST "https://gitee.com/api/v5/repos/mayixuanemail-web/lulema/releases?access_token=$GITEE_TOKEN" \
@@ -128,6 +134,11 @@ jobs:
               -d "name=$TAG_NAME" \
               -d "body=Auto release from GitHub Actions" \
               -d "target_commitish=$COMMIT_ID")
+            echo "Gitee create release response: $CREATE_RES"
+            if ! echo "$CREATE_RES" | jq . >/dev/null 2>&1; then
+              echo "Gitee create release did not return valid JSON, aborting."
+              exit 1
+            fi
             RELEASE_ID=$(echo "$CREATE_RES" | jq -r '.id')
           fi
           if [ "$RELEASE_ID" = "null" ] || [ -z "$RELEASE_ID" ]; then
@@ -136,6 +147,10 @@ jobs:
           fi
           # 删除同名旧附件（如有）
           ASSETS=$(curl -s "https://gitee.com/api/v5/repos/mayixuanemail-web/lulema/releases/$RELEASE_ID/assets?access_token=$GITEE_TOKEN")
+          if ! echo "$ASSETS" | jq . >/dev/null 2>&1; then
+            echo "Gitee assets API did not return valid JSON, aborting."
+            exit 1
+          fi
           ASSET_ID=$(echo "$ASSETS" | jq -r ".[] | select(.name == \"$FILE_NAME\") | .id")
           if [ -n "$ASSET_ID" ] && [ "$ASSET_ID" != "null" ]; then
             curl -X DELETE "https://gitee.com/api/v5/repos/mayixuanemail-web/lulema/releases/$RELEASE_ID/assets/$ASSET_ID?access_token=$GITEE_TOKEN"
