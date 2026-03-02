@@ -192,7 +192,7 @@ jobs:
             fi
           fi
           
-          # 6. 上传APK（核心修复：Token放请求头+稳定的curl参数）
+          # 6. 上传APK（核心修复：Token放请求头+稳定的curl参数+接口修正）
           echo "开始上传APK..."
           UPLOAD_SUCCESS=false
           for i in {1..3}; do
@@ -201,7 +201,7 @@ jobs:
               -H "Authorization: token $GITEE_TOKEN" \
               -F "name=$FILE_NAME" \
               -F "attachment=@$APK_PATH;type=application/vnd.android.package-archive" \
-              "$API_URL/releases/$RELEASE_ID/assets")
+              "$API_URL/releases/$RELEASE_ID/attachments")
             UPLOAD_HTTP_CODE=$(echo "$UPLOAD_RESP" | sed -e '$!{N;D;}' | grep -oE 'HTTP_STATUS:[0-9]+' | cut -d: -f2)
             UPLOAD_BODY=$(echo "$UPLOAD_RESP" | sed 's/HTTP_STATUS:[0-9]*$//')
           
@@ -230,3 +230,4 @@ jobs:
               fi
               
               echo "✅ APK成功上传到Gitee Release（tag: $TAG_NAME）！"
+
