@@ -120,8 +120,35 @@ jobs:
         run: |
           set -e
           APK_PATH="app/build/outputs/apk/release/app-release.apk"
-          # 获取 release_id
+          # 先查 tag 是否已存在 release
           RELEASE_ID=$(curl -s "https://gitee.com/api/v5/repos/$GITEE_OWNER/$GITEE_REPO/releases/tags/$TAG_NAME?access_token=$GITEE_TOKEN" | jq -r '.id')
+          if [ "$RELEASE_ID" = "null" ] || [ -z "$RELEASE_ID" ]; then
+            # 不存在则创建
+            RELEASE_NAME="Release $TAG_NAME"
+            RELEASE_BODY="自动同步自 GitHub Release。"
+            JSON=$(jq -n \
+              --arg access_token "$GITEE_TOKEN" \
+              --arg tag_name "$TAG_NAME" \
+              --arg name "$RELEASE_NAME" \
+              --arg body "$RELEASE_BODY" \
+              '{access_token: $access_token, tag_name: $tag_name, name: $name, body: $body, prerelease: false}')
+            RESPONSE=$(curl -s -X POST "https://gitee.com/api/v5/repos/$GITEE_OWNER/$GITEE_REPO/releases" \
+              -H "Content-Type: application/json" \
+              -d "$JSON")
+            echo "Gitee create release response: $RESPONSE"
+            RELEASE_ID=$(echo "$RESPONSE" | jq -r '.id')
+          fi
+          # 再重试查 id（防止延迟）
+          for i in {1..5}; do
+            RESP=$(curl -s "https://gitee.com/api/v5/repos/$GITEE_OWNER/$GITEE_REPO/releases/tags/$TAG_NAME?access_token=$GITEE_TOKEN")
+            echo "Gitee API response: $RESP"
+            RELEASE_ID=$(echo "$RESP" | jq -r '.id')
+            if [ "$RELEASE_ID" != "null" ] && [ -n "$RELEASE_ID" ]; then
+              break
+            fi
+            echo "Release id not found, retrying in 3s... ($i/5)"
+            sleep 3
+          done
           if [ "$RELEASE_ID" = "null" ] || [ -z "$RELEASE_ID" ]; then
             echo "Failed to get Gitee release id for tag $TAG_NAME" >&2
             exit 1
