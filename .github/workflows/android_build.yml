@@ -101,3 +101,11 @@ jobs:
           git remote add gitee https://mayixuanemail-web:${GITEE_TOKEN}@gitee.com/mayixuanemail-web/lulema.git
           git fetch origin $TAG_NAME --tags
           git push gitee $TAG_NAME
+
+      - name: Sync GitHub code to Gitee
+        if: github.event_name == 'push'
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+        run: |
+          git remote add gitee-sync https://mayixuanemail-web:${GITEE_TOKEN}@gitee.com/mayixuanemail-web/lulema.git || true
+          git push gitee-sync HEAD:refs/heads/$(git rev-parse --abbrev-ref HEAD) --force
