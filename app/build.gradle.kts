@@ -22,6 +22,28 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    // CI 签名：从环境变量读取（GitHub Actions Secrets 注入）
+    signingConfigs {
+        create("release") {
+            val keystorePath = System.getenv("ANDROID_KEYSTORE_PATH")
+            val storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+            val keyAlias = System.getenv("ANDROID_KEY_ALIAS")
+            val keyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+
+            // 只有在 CI 注入齐全时才配置签名，避免本地构建失败
+            if (!keystorePath.isNullOrBlank()
+                && !storePassword.isNullOrBlank()
+                && !keyAlias.isNullOrBlank()
+                && !keyPassword.isNullOrBlank()) {
+                storeFile = file(keystorePath)
+                storeType = "PKCS12"
+                this.storePassword = storePassword
+                this.keyAlias = keyAlias
+                this.keyPassword = keyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
@@ -29,8 +51,12 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+
+            // 使用 release 签名（若 signingConfigs.release 未配置完整，AGP 会回退为 unsigned）
+            signingConfig = signingConfigs.getByName("release")
         }
     }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
