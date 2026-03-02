@@ -58,14 +58,16 @@ jobs:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: ./gradlew assembleRelease -PversionCode=${{ github.run_number }}
+        run: |
+          ./gradlew assembleRelease -PversionCode=${{ github.run_number }}
+          mv app/build/outputs/apk/release/app-release.apk app/build/outputs/apk/release/app-release-v1.0.${{ github.run_number }}.apk
 
       - name: Upload Release APK
         if: github.event_name == 'push'
         uses: actions/upload-artifact@v4
         with:
-          name: app-release
-          path: app/build/outputs/apk/release/app-release.apk
+          name: app-release-v1.0.${{ github.run_number }}
+          path: app/build/outputs/apk/release/app-release-v1.0.${{ github.run_number }}.apk
 
       - name: Release APK
         uses: softprops/action-gh-release@v1
@@ -76,6 +78,6 @@ jobs:
           draft: false
           prerelease: false
           files: |
-            app/build/outputs/apk/release/app-release.apk
+            app/build/outputs/apk/release/app-release-v1.0.${{ github.run_number }}.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
