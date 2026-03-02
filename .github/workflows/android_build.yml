@@ -121,6 +121,18 @@ jobs:
           # 获取 release_id
           RELEASE_ID=$(curl -s "https://gitee.com/api/v5/repos/mayixuanemail-web/lulema/releases/tags/$TAG_NAME?access_token=$GITEE_TOKEN" | jq -r '.id')
           if [ "$RELEASE_ID" = "null" ] || [ -z "$RELEASE_ID" ]; then
+            # 获取最新 commit id
+            COMMIT_ID=$(git rev-parse HEAD)
+            # 创建 release
+            CREATE_RES=$(curl -s -X POST "https://gitee.com/api/v5/repos/mayixuanemail-web/lulema/releases?access_token=$GITEE_TOKEN" \
+              -d "tag_name=$TAG_NAME" \
+              -d "name=$TAG_NAME" \
+              -d "body=Auto release from GitHub Actions" \
+              -d "target_commitish=$COMMIT_ID")
+            echo "Gitee create release response: $CREATE_RES"
+            RELEASE_ID=$(echo "$CREATE_RES" | jq -r '.id')
+          fi
+          if [ "$RELEASE_ID" = "null" ] || [ -z "$RELEASE_ID" ]; then
             echo "Failed to get Gitee release id for tag $TAG_NAME" >&2
             exit 1
           fi
