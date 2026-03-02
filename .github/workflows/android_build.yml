@@ -109,3 +109,23 @@ jobs:
           curl -X POST "https://gitee.com/api/v5/repos/$GITEE_OWNER/$GITEE_REPO/releases" \
             -H "Content-Type: application/json" \
             -d "$JSON"
+
+      - name: Upload APK to Gitee Release
+        if: github.event_name == 'push'
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+          GITEE_OWNER: ${{ secrets.GITEE_OWNER }}
+          GITEE_REPO: ${{ secrets.GITEE_REPO }}
+          TAG_NAME: v1.0.${{ github.run_number }}
+        run: |
+          set -e
+          APK_PATH="app/build/outputs/apk/release/app-release.apk"
+          # 获取 release_id
+          RELEASE_ID=$(curl -s "https://gitee.com/api/v5/repos/$GITEE_OWNER/$GITEE_REPO/releases/tags/$TAG_NAME?access_token=$GITEE_TOKEN" | jq -r '.id')
+          if [ "$RELEASE_ID" = "null" ] || [ -z "$RELEASE_ID" ]; then
+            echo "Failed to get Gitee release id for tag $TAG_NAME" >&2
+            exit 1
+          fi
+          # 上传 APK
+          curl -X POST "https://gitee.com/api/v5/repos/$GITEE_OWNER/$GITEE_REPO/releases/$RELEASE_ID/assets?access_token=$GITEE_TOKEN" \
+            -F "attachment=@$APK_PATH"
