@@ -126,15 +126,15 @@ jobs:
             echo "Failed to get Gitee release id for tag $TAG_NAME" >&2
             exit 1
           fi
-          # 删除同名旧附件（如有）
+          # 删除同名旧附件（如有），兼容空 assets 响应
           ASSETS=$(curl -s "https://gitee.com/api/v5/repos/mayixuanemail-web/lulema/releases/$RELEASE_ID/assets?access_token=$GITEE_TOKEN")
           if ! echo "$ASSETS" | jq . >/dev/null 2>&1; then
-            echo "Gitee assets API did not return valid JSON, aborting."
-            exit 1
-          fi
-          ASSET_ID=$(echo "$ASSETS" | jq -r ".[] | select(.name == \"$FILE_NAME\") | .id")
-          if [ -n "$ASSET_ID" ] && [ "$ASSET_ID" != "null" ]; then
-            curl -X DELETE "https://gitee.com/api/v5/repos/mayixuanemail-web/lulema/releases/$RELEASE_ID/assets/$ASSET_ID?access_token=$GITEE_TOKEN"
+            echo "Gitee assets API did not return valid JSON, skipping asset deletion."
+          else
+            ASSET_ID=$(echo "$ASSETS" | jq -r ".[] | select(.name == \"$FILE_NAME\") | .id")
+            if [ -n "$ASSET_ID" ] && [ "$ASSET_ID" != "null" ]; then
+              curl -X DELETE "https://gitee.com/api/v5/repos/mayixuanemail-web/lulema/releases/$RELEASE_ID/assets/$ASSET_ID?access_token=$GITEE_TOKEN"
+            fi
           fi
           # 上传最新 APK
           curl -X POST "https://gitee.com/api/v5/repos/mayixuanemail-web/lulema/releases/$RELEASE_ID/assets?access_token=$GITEE_TOKEN" \
