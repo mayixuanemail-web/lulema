@@ -136,6 +136,7 @@ jobs:
               curl -X DELETE "https://gitee.com/api/v5/repos/mayixuanemail-web/lulema/releases/$RELEASE_ID/assets/$ASSET_ID?access_token=$GITEE_TOKEN"
             fi
           fi
-          # 上传最新 APK
-          curl -X POST "https://gitee.com/api/v5/repos/mayixuanemail-web/lulema/releases/$RELEASE_ID/assets?access_token=$GITEE_TOKEN" \
-            -F "attachment=@$APK_PATH"
+          # 上传最新 APK，指定 MIME 类型并打印响应
+          UPLOAD_RES=$(curl -s -X POST "https://gitee.com/api/v5/repos/mayixuanemail-web/lulema/releases/$RELEASE_ID/assets?access_token=$GITEE_TOKEN" \
+            -F "attachment=@$APK_PATH;type=application/vnd.android.package-archive")
+          echo "Gitee upload response: $UPLOAD_RES"
