@@ -80,6 +80,17 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Push tag to Gitee
+        if: github.event_name == 'push'
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+        run: |
+          git config --global user.email "ci-bot@example.com"
+          git config --global user.name "ci-bot"
+          git remote add gitee https://mayixuanemail-web:${GITEE_TOKEN}@gitee.com/mayixuanemail-web/lulema.git
+          git fetch origin v1.0.${{ github.run_number }} --tags || true
+          git push gitee v1.0.${{ github.run_number }}
+
       - name: Upload APK to Gitee Release
         if: github.event_name == 'push'
         env:
