@@ -1,0 +1,30 @@
+name: Sync Release to Gitee
+on:
+  release:
+    types: [published]
+jobs:
+  sync-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install GitHub CLI
+        run: sudo apt install gh
+      - name: Get GitHub Release Info
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}
+          gh release view $TAG --json tagName,name,body,assets > release.json
+      - name: Sync to Gitee Release
+        uses: nicennnnnnnlee/action-gitee-release@v2.0.0
+        with:
+          gitee_action: create_release
+          gitee_owner: mayixuanemail-web
+          gitee_repo: lulema
+          gitee_token: ${{ secrets.GITEE_TOKEN }}
+          gitee_tag_name: ${{ fromJson(file('release.json')).tagName }}
+          gitee_release_name: ${{ fromJson(file('release.json')).name }}
+          gitee_body: ${{ fromJson(file('release.json')).body }}
+          # 上传所有附件（可选）
+          gitee_upload_assets: true
