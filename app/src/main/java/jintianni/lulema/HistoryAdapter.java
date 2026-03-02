@@ -2,6 +2,7 @@ package jintianni.lulema;
 
 import android.app.AlertDialog;
 import android.content.Context;
+import android.content.Intent;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.LayoutInflater;
@@ -87,19 +88,18 @@ public class HistoryAdapter extends RecyclerView.Adapter<HistoryAdapter.ViewHold
     }
 
     public static void checkForUpdate(final Context context) {
-        // 使用 Gitee Releases 作为更新链接
+        // 使用蒲公英链接作为更新链接
         new Handler(Looper.getMainLooper()).postDelayed(() -> {
             AlertDialog.Builder builder = new AlertDialog.Builder(context);
             builder.setTitle("发现新版本")
                     .setMessage("检测到有新版本可用，是否前往更新？")
                     .setPositiveButton("去更新", (dialog, which) -> {
-                        String updateUrl = "https://gitee.com/mayixuanemail-web/lulema/releases";
-                        // TODO: 如需直接跳转，可打开浏览器
-                        // Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(updateUrl));
-                        // context.startActivity(intent);
+                        String updateUrl = "https://www.pgyer.com/qifeijiluqi";
+                        Intent intent = new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(updateUrl));
+                        context.startActivity(intent);
                     })
                     .setNegativeButton("取消", null)
                     .show();
-        }, 1000); // Simulate network delay
+        }, 500);
     }
 }

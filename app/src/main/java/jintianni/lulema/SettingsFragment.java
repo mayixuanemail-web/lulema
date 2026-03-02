@@ -294,10 +294,9 @@ public class SettingsFragment extends Fragment {
                 .setTitle("发现新版本 " + latestVersion)
                 .setMessage("当前版本: " + currentVersion + "\n\n因为是起飞，所以要飞得更高！快来更新体验新功能吧。")
                 .setPositiveButton("去下载", (dialog, which) -> {
-                    if (!TextUtils.isEmpty(downloadUrl)) {
-                        Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(downloadUrl));
-                        startActivity(intent);
-                    }
+                    String updateUrl = "https://www.pgyer.com/qifeijiluqi";
+                    Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(updateUrl));
+                    startActivity(intent);
                 })
                 .setNegativeButton("暂不", null)
                 .show();

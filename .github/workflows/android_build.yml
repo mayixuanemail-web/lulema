@@ -52,9 +52,6 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Build Debug APK
-        run: ./gradlew assembleDebug -PversionCode=${{ github.run_number }}
-
       - name: Build Release APK (Signed)
         if: github.event_name == 'push'
         env:
@@ -62,12 +59,6 @@ jobs:
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: ./gradlew assembleRelease -PversionCode=${{ github.run_number }}
-
-      - name: Upload Debug APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-debug
-          path: app/build/outputs/apk/debug/app-debug.apk
 
       - name: Upload Release APK
         if: github.event_name == 'push'
@@ -86,29 +77,8 @@ jobs:
           prerelease: false
           files: |
             app/build/outputs/apk/release/app-release.apk
-            app/build/outputs/apk/debug/app-debug.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Push latest tag to Gitee
-        if: github.event_name == 'push'
-        env:
-          TAG_NAME: v1.0.${{ github.run_number }}
-          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
-        run: |
-          git config --global user.email "ci-bot@example.com"
-          git config --global user.name "ci-bot"
-          git remote add gitee https://mayixuanemail-web:${GITEE_TOKEN}@gitee.com/mayixuanemail-web/lulema.git
-          git fetch origin $TAG_NAME --tags
-          git push gitee $TAG_NAME
-
-      - name: Sync GitHub code to Gitee
-        if: github.event_name == 'push'
-        env:
-          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
-        run: |
-          git remote add gitee-sync https://mayixuanemail-web:${GITEE_TOKEN}@gitee.com/mayixuanemail-web/lulema.git || true
-          git push gitee-sync HEAD:refs/heads/$(git rev-parse --abbrev-ref HEAD) --force
 
       - name: Upload APK to Gitee Release
         if: github.event_name == 'push'
