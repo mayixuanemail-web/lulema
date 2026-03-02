@@ -52,8 +52,10 @@ android {
                 "proguard-rules.pro"
             )
 
-            // 使用 release 签名（若 signingConfigs.release 未配置完整，AGP 会回退为 unsigned）
-            signingConfig = signingConfigs.getByName("release")
+            // 仅当 CI 注入 keystore 路径时才启用签名，否则不要指定 signingConfig（避免缺少 storeFile 报错）
+            if (!System.getenv("ANDROID_KEYSTORE_PATH").isNullOrBlank()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
 
