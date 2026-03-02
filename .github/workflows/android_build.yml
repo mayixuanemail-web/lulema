@@ -91,52 +91,123 @@ jobs:
           git fetch origin v1.0.${{ github.run_number }} --tags || true
           git push gitee v1.0.${{ github.run_number }}
 
+      - name: Install jq (修复依赖缺失)
+        if: github.event_name == 'push'
+        run: sudo apt-get update && sudo apt-get install -y jq
+
       - name: Upload APK to Gitee Release
         if: github.event_name == 'push'
         env:
           GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+          GITEE_OWNER: mayixuanemail-web
+          GITEE_REPO: lulema
         run: |
-          set -e
+          set -euo pipefail  # 严格模式，任何错误立即退出
           APK_PATH="app/build/outputs/apk/release/app-release.apk"
           TAG_NAME="v1.0.${{ github.run_number }}"
           FILE_NAME="app-release.apk"
-          # 获取 release_id
-          RELEASE_JSON=$(curl -s "https://gitee.com/api/v5/repos/mayixuanemail-web/lulema/releases/tags/$TAG_NAME?access_token=$GITEE_TOKEN")
-          echo "Gitee API response: $RELEASE_JSON"
-          if ! echo "$RELEASE_JSON" | jq . >/dev/null 2>&1; then
-            echo "Gitee API did not return valid JSON, aborting."
+          API_BASE="https://gitee.com/api/v5/repos/$GITEE_OWNER/$GITEE_REPO"
+          
+          # 1. 校验APK文件是否存在且非空
+          if [ ! -f "$APK_PATH" ]; then
+            echo "错误：APK文件不存在！路径：$APK_PATH"
+            ls -l app/build/outputs/apk/release/ || true  # 打印目录内容排查
             exit 1
           fi
-          RELEASE_ID=$(echo "$RELEASE_JSON" | jq -r '.id')
-          if [ "$RELEASE_ID" = "null" ] || [ -z "$RELEASE_ID" ]; then
-            COMMIT_ID=$(git rev-parse HEAD)
-            CREATE_RES=$(curl -s -X POST "https://gitee.com/api/v5/repos/mayixuanemail-web/lulema/releases?access_token=$GITEE_TOKEN" \
-              -d "tag_name=$TAG_NAME" \
-              -d "name=$TAG_NAME" \
-              -d "body=Auto release from GitHub Actions" \
-              -d "target_commitish=$COMMIT_ID")
-            echo "Gitee create release response: $CREATE_RES"
-            if ! echo "$CREATE_RES" | jq . >/dev/null 2>&1; then
-              echo "Gitee create release did not return valid JSON, aborting."
-              exit 1
+          if [ ! -s "$APK_PATH" ]; then
+            echo "错误：APK文件为空！路径：$APK_PATH"
+            exit 1
+          fi
+          
+          # 2. 获取release_id（带重试）
+          RELEASE_ID=""
+          for i in {1..3}; do
+            echo "第 $i 次尝试获取Release ID（tag: $TAG_NAME）..."
+            RELEASE_RESP=$(curl -s -w "%{http_code}" -o /tmp/release.json \
+              "$API_BASE/releases/tags/$TAG_NAME?access_token=$GITEE_TOKEN")
+            HTTP_CODE=$(tail -n1 /tmp/release.json)
+            RELEASE_JSON=$(head -n -1 /tmp/release.json)
+          
+            if [ "$HTTP_CODE" = "200" ]; then
+              RELEASE_ID=$(echo "$RELEASE_JSON" | jq -r '.id')
+              if [ "$RELEASE_ID" != "null" ] && [ -n "$RELEASE_ID" ]; then
+                echo "找到Release ID: $RELEASE_ID"
+                break
+              fi
+            elif [ "$HTTP_CODE" = "404" ]; then
+              echo "Release不存在，创建新Release..."
+              # 使用当前分支名而非commit id，避免分支不匹配
+              TARGET_BRANCH=${{ github.ref_name }}
+              CREATE_RESP=$(curl -s -w "%{http_code}" -o /tmp/create_release.json \
+                -X POST "$API_BASE/releases?access_token=$GITEE_TOKEN" \
+                -H "Content-Type: application/x-www-form-urlencoded" \
+                -d "tag_name=$TAG_NAME" \
+                -d "name=$TAG_NAME" \
+                -d "body=Auto release from GitHub Actions" \
+                -d "target_commitish=$TARGET_BRANCH")
+              CREATE_HTTP_CODE=$(tail -n1 /tmp/create_release.json)
+              CREATE_JSON=$(head -n -1 /tmp/create_release.json)
+          
+              if [ "$CREATE_HTTP_CODE" = "201" ]; then
+                RELEASE_ID=$(echo "$CREATE_JSON" | jq -r '.id')
+                echo "创建Release成功，ID: $RELEASE_ID"
+                break
+              else
+                echo "创建Release失败！HTTP状态码：$CREATE_HTTP_CODE，响应：$CREATE_JSON"
+                sleep 3
+              fi
+            else
+              echo "获取Release失败！HTTP状态码：$HTTP_CODE，响应：$RELEASE_JSON"
+              sleep 3
             fi
-            RELEASE_ID=$(echo "$CREATE_RES" | jq -r '.id')
-          fi
+          done
+          
+          # 3. 校验Release ID
           if [ "$RELEASE_ID" = "null" ] || [ -z "$RELEASE_ID" ]; then
-            echo "Failed to get Gitee release id for tag $TAG_NAME" >&2
+            echo "错误：无法获取/创建Gitee Release ID！"
             exit 1
           fi
-          # 删除同名旧附件（如有），兼容空 assets 响应
-          ASSETS=$(curl -s "https://gitee.com/api/v5/repos/mayixuanemail-web/lulema/releases/$RELEASE_ID/assets?access_token=$GITEE_TOKEN")
-          if ! echo "$ASSETS" | jq . >/dev/null 2>&1; then
-            echo "Gitee assets API did not return valid JSON, skipping asset deletion."
-          else
-            ASSET_ID=$(echo "$ASSETS" | jq -r ".[] | select(.name == \"$FILE_NAME\") | .id")
+          
+          # 4. 删除同名旧附件（避免冲突）
+          echo "检查并删除同名旧附件..."
+          ASSETS_RESP=$(curl -s "$API_BASE/releases/$RELEASE_ID/assets?access_token=$GITEE_TOKEN")
+          if echo "$ASSETS_RESP" | jq . >/dev/null 2>&1; then
+            ASSET_ID=$(echo "$ASSETS_RESP" | jq -r ".[] | select(.name == \"$FILE_NAME\") | .id")
             if [ -n "$ASSET_ID" ] && [ "$ASSET_ID" != "null" ]; then
-              curl -X DELETE "https://gitee.com/api/v5/repos/mayixuanemail-web/lulema/releases/$RELEASE_ID/assets/$ASSET_ID?access_token=$GITEE_TOKEN"
+              DELETE_RESP=$(curl -s -w "%{http_code}" -X DELETE "$API_BASE/releases/$RELEASE_ID/assets/$ASSET_ID?access_token=$GITEE_TOKEN")
+              if [ "$DELETE_RESP" = "204" ] || echo "$DELETE_RESP" | jq -r '.message' = "success"; then
+                echo "删除旧附件成功（ID: $ASSET_ID）"
+              else
+                echo "删除旧附件失败，响应：$DELETE_RESP"
+              fi
             fi
           fi
-          # 上传最新 APK，指定 MIME 类型并打印响应
-          UPLOAD_RES=$(curl -s -X POST "https://gitee.com/api/v5/repos/mayixuanemail-web/lulema/releases/$RELEASE_ID/assets?access_token=$GITEE_TOKEN" \
-            -F "attachment=@$APK_PATH;type=application/vnd.android.package-archive")
-          echo "Gitee upload response: $UPLOAD_RES"
+          
+          # 5. 上传APK（核心修复：添加name参数+校验状态）
+          echo "开始上传APK到Gitee Release..."
+          UPLOAD_SUCCESS=false
+          for i in {1..3}; do
+            UPLOAD_RESP=$(curl -s -w "%{http_code}" -o /tmp/upload_apk.json \
+              -X POST "$API_BASE/releases/$RELEASE_ID/assets?access_token=$GITEE_TOKEN" \
+              -F "name=$FILE_NAME" \  # 关键：指定文件名
+              -F "attachment=@$APK_PATH;type=application/vnd.android.package-archive")
+            UPLOAD_HTTP_CODE=$(tail -n1 /tmp/upload_apk.json)
+            UPLOAD_JSON=$(head -n -1 /tmp/upload_apk.json)
+          
+            if [ "$UPLOAD_HTTP_CODE" = "201" ]; then
+              echo "APK上传成功！响应：$UPLOAD_JSON"
+              UPLOAD_SUCCESS=true
+              break
+            else
+              echo "第 $i 次上传失败！HTTP状态码：$UPLOAD_HTTP_CODE，响应：$UPLOAD_JSON"
+              sleep 5
+            fi
+          done
+          
+          # 6. 最终校验上传结果
+          if [ "$UPLOAD_SUCCESS" = false ]; then
+            echo "错误：APK上传失败（3次重试均失败）！"
+            exit 1
+          fi
+          
+          echo "✅ APK成功上传到Gitee Release（tag: $TAG_NAME）！"
