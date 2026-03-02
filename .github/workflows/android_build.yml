@@ -92,9 +92,10 @@ jobs:
         if: github.event_name == 'push'
         env:
           TAG_NAME: v1.0.${{ github.run_number }}
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
         run: |
           git config --global user.email "ci-bot@example.com"
           git config --global user.name "ci-bot"
-          git remote add gitee https://gitee.com/mayixuanemail-web/lulema.git
+          git remote add gitee https://mayixuanemail-web:${GITEE_TOKEN}@gitee.com/mayixuanemail-web/lulema.git
           git fetch origin $TAG_NAME --tags
           git push gitee $TAG_NAME
