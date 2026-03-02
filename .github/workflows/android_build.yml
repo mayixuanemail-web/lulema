@@ -99,12 +99,13 @@ jobs:
           RELEASE_NAME="Release v1.0.${{ github.run_number }}"
           RELEASE_BODY="自动同步自 GitHub Release。"
 
+          JSON=$(jq -n \
+            --arg access_token "$GITEE_TOKEN" \
+            --arg tag_name "$TAG_NAME" \
+            --arg name "$RELEASE_NAME" \
+            --arg body "$RELEASE_BODY" \
+            '{access_token: $access_token, tag_name: $tag_name, name: $name, body: $body, prerelease: false}')
+
           curl -X POST "https://gitee.com/api/v5/repos/$GITEE_OWNER/$GITEE_REPO/releases" \
             -H "Content-Type: application/json" \
-            -d '{
-              "access_token": "'$GITEE_TOKEN'",
-              "tag_name": "'$TAG_NAME'",
-              "name": "'$RELEASE_NAME'",
-              "body": "'$RELEASE_BODY'",
-              "prerelease": false
-            }'
+            -d "$JSON"
