@@ -2,7 +2,6 @@ package jintianni.lulema;
 
 import android.app.AlertDialog;
 import android.content.Context;
-import android.content.Intent;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.LayoutInflater;
@@ -88,18 +87,7 @@ public class HistoryAdapter extends RecyclerView.Adapter<HistoryAdapter.ViewHold
     }
 
     public static void checkForUpdate(final Context context) {
-        // 使用蒲公英链接作为更新链接
-        new Handler(Looper.getMainLooper()).postDelayed(() -> {
-            AlertDialog.Builder builder = new AlertDialog.Builder(context);
-            builder.setTitle("发现新版本")
-                    .setMessage("检测到有新版本可用，是否前往更新？")
-                    .setPositiveButton("去更新", (dialog, which) -> {
-                        String updateUrl = "https://www.pgyer.com/qifeijiluqi";
-                        Intent intent = new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(updateUrl));
-                        context.startActivity(intent);
-                    })
-                    .setNegativeButton("取消", null)
-                    .show();
-        }, 500);
+        // 使用与设置页一致的更新逻辑：直接从 Gitee 下载并安装最新 APK
+        UpdateHelper.checkAndDownload(context);
     }
 }

@@ -3,14 +3,17 @@ package jintianni.lulema;
 import android.Manifest;
 import android.app.Activity;
 import android.appwidget.AppWidgetManager;
+import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.provider.Settings;
 import android.text.TextUtils;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -28,14 +31,6 @@ import androidx.fragment.app.Fragment;
 import com.google.android.material.card.MaterialCardView;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.snackbar.Snackbar;
-
-import org.json.JSONArray;
-import org.json.JSONObject;
-
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.net.HttpURLConnection;
-import java.net.URL;
 
 public class SettingsFragment extends Fragment {
 
@@ -105,6 +100,11 @@ public class SettingsFragment extends Fragment {
         });
 
         return view;
+    }
+
+    @Override
+    public void onDestroyView() {
+        super.onDestroyView();
     }
 
     private void checkPermissionAndPickImage() {
@@ -203,102 +203,24 @@ public class SettingsFragment extends Fragment {
     }
 
     private void checkUpdate() {
-        Toast.makeText(getContext(), "正在检查更新...", Toast.LENGTH_SHORT).show();
-        new Thread(() -> {
-            try {
-                // Replace with your actual repo
-                URL url = new URL("https://gitee.com/api/v5/repos/mayixuanemail-web/lulema/releases/latest");
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                conn.setRequestMethod("GET");
-                conn.setConnectTimeout(5000);
-                conn.setReadTimeout(5000);
-
-                if (conn.getResponseCode() == 200) {
-                    BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
-                    StringBuilder response = new StringBuilder();
-                    String line;
-                    while ((line = reader.readLine()) != null) {
-                        response.append(line);
-                    }
-                    reader.close();
-
-                    JSONObject jsonResponse = new JSONObject(response.toString());
-                    String tagName = jsonResponse.optString("tag_name", "");
-
-                    // Gitee：assets 字段通常是数组，包含附件信息
-                    String downloadUrl = "";
-                    JSONArray assets = jsonResponse.optJSONArray("assets");
-                    if (assets != null && assets.length() > 0) {
-                        for (int i = 0; i < assets.length(); i++) {
-                            JSONObject asset = assets.getJSONObject(i);
-                            String name = asset.optString("name", "");
-                            if (name.endsWith(".apk")) {
-                                // 常见字段：browser_download_url
-                                downloadUrl = asset.optString("browser_download_url", "");
-                                if (downloadUrl.isEmpty()) {
-                                    // 兼容字段：url
-                                    downloadUrl = asset.optString("url", "");
-                                }
-                                break;
-                            }
-                        }
-                    }
-
-                    if (downloadUrl.isEmpty()) {
-                        // 回落到发布页
-                        downloadUrl = jsonResponse.optString("html_url", "");
-                        if (downloadUrl.isEmpty()) {
-                            downloadUrl = "https://gitee.com/mayixuanemail-web/lulema/releases";
-                        }
-                    }
-
-                    final String finalDownloadUrl = downloadUrl;
-                    final String finalTagName = tagName;
-
-                    if (getActivity() != null) {
-                        getActivity().runOnUiThread(() -> showUpdateDialog(finalTagName, finalDownloadUrl));
-                    }
-                } else {
-                    if (getActivity() != null) {
-                        try {
-                            int responseCode = conn.getResponseCode();
-                            getActivity().runOnUiThread(() -> Toast.makeText(getContext(), "无法连接更新服务器 (Code: " + responseCode + ")", Toast.LENGTH_SHORT).show());
-                        } catch (Exception e) {
-                            e.printStackTrace();
-                        }
-                    }
-                }
-            } catch (Exception e) {
-                if (getActivity() != null) {
-                    getActivity().runOnUiThread(() -> Toast.makeText(getContext(), "网络请求失败，请检查网络设置或稍后再试", Toast.LENGTH_SHORT).show());
-                }
-            }
-        }).start();
+        // 直接复用公共更新逻辑：从 Gitee 拉取最新 APK 并下载安装
+        UpdateHelper.checkAndDownload(requireContext());
     }
 
     private void showUpdateDialog(String latestVersion, String downloadUrl) {
+        // Deprecated by direct download; keep fallback dialog if needed
         String currentVersion = "";
         try {
             currentVersion = requireContext().getPackageManager().getPackageInfo(requireContext().getPackageName(), 0).versionName;
         } catch (PackageManager.NameNotFoundException e) {
             currentVersion = "1.0.0";
         }
-
-        // Simple version comparison: if strings not equal
-        // Ideally parse v1.0.5 -> 1.0.5 and compare numbers, but string check is basic start
-        // Assuming tag_name format is "v1.0.X" and versionName is "1.0.X"
         String cleanLatest = latestVersion.replace("v", "");
-
         if (!cleanLatest.equals(currentVersion)) {
              new MaterialAlertDialogBuilder(requireContext())
                 .setTitle("发现新版本 " + latestVersion)
-                .setMessage("当前版本: " + currentVersion + "\n\n因为是起飞，所以要飞得更高！快来更新体验新功能吧。")
-                .setPositiveButton("去下载", (dialog, which) -> {
-                    String updateUrl = "https://www.pgyer.com/qifeijiluqi";
-                    Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(updateUrl));
-                    startActivity(intent);
-                })
-                .setNegativeButton("暂不", null)
+                .setMessage("正在为你下载最新版本，稍后将自动安装。")
+                .setPositiveButton("好的", null)
                 .show();
         } else {
             Toast.makeText(getContext(), "当前已是最新版本", Toast.LENGTH_SHORT).show();
