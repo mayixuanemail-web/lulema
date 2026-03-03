@@ -100,16 +100,99 @@ jobs:
         uses: wearerequired/git-mirror-action@v1
         with:
           source-repo: "https://github.com/mayixuanemail-web/lulema.git"
-          # 已统一修改为 GITEE_TOKEN
           destination-repo: "https://mayixuanemail-web:${{ secrets.GITEE_TOKEN }}@gitee.com/mayixuanemail-web/lulema.git"
           force-push: true
 
-      - name: 同步本次Release到Gitee
-        uses: yanglbme/gitee-pages-action@main
-        with:
-          gitee-username: mayixuanemail-web
-          # 已统一修改为 GITEE_TOKEN
-          gitee-token: ${{ secrets.GITEE_TOKEN }}
-          repository: mayixuanemail-web/lulema
-          sync-release: true
-          release-tag: ${{ needs.build.outputs.release_tag }}
+      - name: 同步Release标题、说明和APK附件到Gitee
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+          RELEASE_TAG: ${{ needs.build.outputs.release_tag }}
+        run: |
+          # --------------------------
+          # 1. 从GitHub获取Release信息
+          # --------------------------
+          echo "📥 正在获取GitHub Release信息..."
+          gh release view "$RELEASE_TAG" \
+            --repo "mayixuanemail-web/lulema" \
+            --json name,body,tagName,assets > release_info.json
+          
+          # 解析JSON数据
+          RELEASE_NAME=$(jq -r '.name' release_info.json)
+          RELEASE_BODY=$(jq -r '.body' release_info.json)
+          ASSETS=$(jq -c '.assets[]' release_info.json)
+          
+          echo "✅ 获取成功："
+          echo "   标签: $RELEASE_TAG"
+          echo "   标题: $RELEASE_NAME"
+          
+          # --------------------------
+          # 2. 在Gitee创建Release
+          # --------------------------
+          echo "🚀 正在创建Gitee Release..."
+          GITEE_API="https://gitee.com/api/v5/repos/mayixuanemail-web/lulema/releases"
+          
+          # 先检查是否已存在同名Release，存在则删除（避免冲突）
+          EXISTING=$(curl -s -H "Authorization: token $GITEE_TOKEN" \
+            "$GITEE_API/tags/$RELEASE_TAG" || true)
+          
+          if [ "$(echo "$EXISTING" | jq -r '.id' 2>/dev/null)" != "null" ]; then
+            echo "⚠️  发现已存在的Release，正在删除..."
+            curl -s -X DELETE -H "Authorization: token $GITEE_TOKEN" \
+              "$GITEE_API/$(echo "$EXISTING" | jq -r '.id')"
+          fi
+          
+          # 创建新Release
+          CREATE_RESULT=$(curl -s -X POST \
+            -H "Authorization: token $GITEE_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$(jq -n \
+              --arg tag "$RELEASE_TAG" \
+              --arg name "$RELEASE_NAME" \
+              --arg body "$RELEASE_BODY" \
+              '{tag_name: $tag, name: $name, body: $body, prerelease: false, draft: false}')" \
+            "$GITEE_API")
+          
+          # 检查创建是否成功
+          if [ "$(echo "$CREATE_RESULT" | jq -r '.id' 2>/dev/null)" == "null" ]; then
+            echo "❌ 创建Release失败：$CREATE_RESULT"
+            exit 1
+          fi
+          
+          GITEE_RELEASE_ID=$(echo "$CREATE_RESULT" | jq -r '.id')
+          echo "✅ Gitee Release创建成功（ID: $GITEE_RELEASE_ID）"
+          
+          # --------------------------
+          # 3. 上传APK附件到Gitee
+          # --------------------------
+          echo "📦 正在上传附件..."
+          
+          for asset in $ASSETS; do
+            ASSET_NAME=$(echo "$asset" | jq -r '.name')
+            ASSET_CONTENT_TYPE=$(echo "$asset" | jq -r '.contentType')
+          
+            echo "   下载附件: $ASSET_NAME"
+            gh release download "$RELEASE_TAG" \
+              --repo "mayixuanemail-web/lulema" \
+              --pattern "$ASSET_NAME" \
+              --output "$ASSET_NAME"
+          
+            echo "   上传到Gitee: $ASSET_NAME"
+            UPLOAD_RESULT=$(curl -s -X POST \
+              -H "Authorization: token $GITEE_TOKEN" \
+              -F "file=@$ASSET_NAME;type=$ASSET_CONTENT_TYPE" \
+              -F "name=$ASSET_NAME" \
+              "https://gitee.com/api/v5/repos/mayixuanemail-web/lulema/releases/$GITEE_RELEASE_ID/assets")
+          
+            if [ "$(echo "$UPLOAD_RESULT" | jq -r '.id' 2>/dev/null)" != "null" ]; then
+              echo "   ✅ $ASSET_NAME 上传成功"
+            else
+              echo "   ⚠️  $ASSET_NAME 上传失败：$UPLOAD_RESULT"
+            fi
+          
+            # 清理临时文件
+            rm -f "$ASSET_NAME"
+          done
+          
+          echo "🎉 全部同步完成！"
+          echo "   访问地址：https://gitee.com/mayixuanemail-web/lulema/releases"
