@@ -107,7 +107,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
-          RELEASE_TAG: v1.0.${{ github.run_number }} # 直接构建Tag，避免依赖输出
+          RELEASE_TAG: v1.0.${{ github.run_number }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           # --------------------------
@@ -118,9 +118,16 @@ jobs:
             --repo "mayixuanemail-web/lulema" \
             --json name,body,tagName,assets > release_info.json
           
-          # 解析JSON数据
+          # 解析JSON数据，处理空描述
           RELEASE_NAME=$(jq -r '.name' release_info.json)
           RELEASE_BODY=$(jq -r '.body' release_info.json)
+          
+          # 关键修复：如果描述为空或null，使用默认值
+          if [ -z "$RELEASE_BODY" ] || [ "$RELEASE_BODY" == "null" ]; then
+            RELEASE_BODY="action自动创建"
+            echo "ℹ️  检测到空描述，已填充默认值"
+          fi
+          
           ASSETS=$(jq -c '.assets[]' release_info.json)
           
           echo "✅ 获取成功："
@@ -144,7 +151,7 @@ jobs:
               "$GITEE_API/$(echo "$EXISTING" | jq -r '.id')"
           fi
           
-          # 创建新Release（添加了target_commitish参数）
+          # 创建新Release
           CREATE_RESULT=$(curl -s -X POST \
             -H "Authorization: token $GITEE_TOKEN" \
             -H "Content-Type: application/json" \
