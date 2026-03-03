@@ -99,17 +99,17 @@ jobs:
       - name: 全量同步代码、分支、Tags到Gitee镜像
         uses: wearerequired/git-mirror-action@v1
         with:
-          # 硬编码：GitHub源仓库地址
           source-repo: "https://github.com/mayixuanemail-web/lulema.git"
-          # 硬编码：Gitee目标仓库地址
-          destination-repo: "https://mayixuanemail-web:${{ secrets.GITEE_PAT }}@gitee.com/mayixuanemail-web/lulema.git"
+          # 已统一修改为 GITEE_TOKEN
+          destination-repo: "https://mayixuanemail-web:${{ secrets.GITEE_TOKEN }}@gitee.com/mayixuanemail-web/lulema.git"
           force-push: true
 
       - name: 同步本次Release到Gitee
         uses: yanglbme/gitee-pages-action@main
         with:
-          gitee-username: mayixuanemail-web  # 硬编码：Gitee用户名
+          gitee-username: mayixuanemail-web
+          # 已统一修改为 GITEE_TOKEN
           gitee-token: ${{ secrets.GITEE_TOKEN }}
-          repository: mayixuanemail-web/lulema  # 硬编码：Gitee仓库路径
+          repository: mayixuanemail-web/lulema
           sync-release: true
           release-tag: ${{ needs.build.outputs.release_tag }}
