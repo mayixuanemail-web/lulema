@@ -114,13 +114,11 @@ jobs:
           # ==============================
           # 初始化与安全设置
           # ==============================
-          set -euo pipefail  # 关键：出错立即停止
-          shopt -s nullglob   # 处理空文件列表
+          set -euo pipefail
+          shopt -s nullglob
           WORK_DIR=$(mktemp -d)
           cd "$WORK_DIR"
-          echo "✅ 工作目录初始化完成: $WORK_DIR"
           
-          # 清理函数（确保脚本结束时清理临时文件）
           cleanup() {
             cd /
             rm -rf "$WORK_DIR"
@@ -129,171 +127,141 @@ jobs:
           trap cleanup EXIT
           
           # ==============================
-          # 1. 从GitHub获取Release完整信息
+          # 1. 获取GitHub Release信息
           # ==============================
-          echo "📥 正在获取GitHub Release完整信息..."
+          echo "📥 获取GitHub Release信息..."
           gh release view "$RELEASE_TAG" \
             --repo "mayixuanemail-web/lulema" \
             --json name,body,tagName,assets > release_info.json
           
-          # 解析JSON数据
           RELEASE_NAME=$(jq -r '.name' release_info.json)
           RELEASE_BODY=$(jq -r '.body' release_info.json)
           ASSET_COUNT=$(jq '.assets | length' release_info.json)
           
-          # 处理空描述
           if [ -z "$RELEASE_BODY" ] || [ "$RELEASE_BODY" == "null" ]; then
             RELEASE_BODY="action自动创建"
-            echo "ℹ️  检测到空描述，已填充默认值"
           fi
           
-          echo "✅ 获取成功："
-          echo "   标签: $RELEASE_TAG"
-          echo "   标题: $RELEASE_NAME"
-          echo "   分支: $DEFAULT_BRANCH"
-          echo "   附件数量: $ASSET_COUNT"
-          
           # ==============================
-          # 2. 在Gitee创建Release
+          # 2. 重新获取有效的Gitee Release ID（核心修复）
           # ==============================
-          echo "🚀 正在创建Gitee Release..."
-          GITEE_API="https://gitee.com/api/v5/repos/mayixuanemail-web/lulema/releases"
+          echo "🚀 处理Gitee Release..."
+          GITEE_API="https://gitee.com/api/v5/repos/mayixuanemail-web/lulema"
           
-          # 先删除已存在的Release（如果有）
-          EXISTING=$(curl -s -H "Authorization: token $GITEE_TOKEN" "$GITEE_API/tags/$RELEASE_TAG" || true)
+          # 删除旧Release
+          EXISTING=$(curl -s -H "Authorization: token $GITEE_TOKEN" "$GITEE_API/releases/tags/$RELEASE_TAG" || true)
           if [ "$(echo "$EXISTING" | jq -r '.id' 2>/dev/null)" != "null" ]; then
-            EXISTING_ID=$(echo "$EXISTING" | jq -r '.id')
-            echo "⚠️  删除已存在的Release (ID: $EXISTING_ID)..."
-            curl -s -X DELETE -H "Authorization: token $GITEE_TOKEN" "$GITEE_API/$EXISTING_ID"
-            sleep 2  # 等待删除生效
+            echo "⚠️ 删除旧Release: $(echo "$EXISTING" | jq -r '.id')"
+            curl -s -X DELETE -H "Authorization: token $GITEE_TOKEN" "$GITEE_API/releases/$(echo "$EXISTING" | jq -r '.id')"
+            sleep 3
           fi
           
-          # 用Python生成完美JSON（比jq更可靠）
-          cat > create_release.py << 'EOF'
-          import json
-          import sys
+          # 创建Release
+          echo "📝 创建Gitee Release..."
+          CREATE_PAYLOAD=$(jq -n \
+            --arg tag "$RELEASE_TAG" \
+            --arg name "$RELEASE_NAME" \
+            --arg body "$RELEASE_BODY" \
+            --arg branch "$DEFAULT_BRANCH" \
+            '{
+              "tag_name": $tag,
+              "name": $name,
+              "body": $body,
+              "target_commitish": $branch,
+              "prerelease": false,
+              "draft": false
+            }')
           
-          with open('release_info.json', 'r', encoding='utf-8') as f:
-              data = json.load(f)
-          
-          body = data.get('body', '')
-          if not body or body == 'null':
-              body = 'action自动创建'
-          
-          payload = {
-              'tag_name': sys.argv[1],
-              'name': data.get('name', sys.argv[1]),
-              'body': body,
-              'target_commitish': sys.argv[2],
-              'prerelease': False,
-              'draft': False
-          }
-          
-          with open('request.json', 'w', encoding='utf-8') as f:
-              json.dump(payload, f, ensure_ascii=False)
-          EOF
-          
-          python3 create_release.py "$RELEASE_TAG" "$DEFAULT_BRANCH"
-          
-          # 发送请求
-          CREATE_RESULT=$(curl -s -w "\nHTTP_STATUS:%{http_code}" -X POST \
+          CREATE_RESULT=$(curl -s -X POST \
             -H "Authorization: token $GITEE_TOKEN" \
             -H "Content-Type: application/json" \
-            -d @request.json \
-            "$GITEE_API")
+            -d "$CREATE_PAYLOAD" \
+            "$GITEE_API/releases")
           
-          # 解析响应
-          HTTP_STATUS=$(echo "$CREATE_RESULT" | tail -n 1 | sed 's/HTTP_STATUS://')
-          RESP_BODY=$(echo "$CREATE_RESULT" | sed '$d')
-          
-          if [ "$HTTP_STATUS" != "201" ] && [ "$HTTP_STATUS" != "200" ]; then
-            echo "❌ 创建Release失败 (状态码: $HTTP_STATUS)"
-            echo "响应内容: $RESP_BODY"
+          # 验证创建结果
+          if echo "$CREATE_RESULT" | jq -e '.id' >/dev/null 2>&1; then
+            GITEE_RELEASE_ID=$(echo "$CREATE_RESULT" | jq -r '.id')
+            echo "✅ 创建Release成功 (ID: $GITEE_RELEASE_ID)"
+          else
+            echo "❌ 创建Release失败: $CREATE_RESULT"
             exit 1
           fi
           
-          GITEE_RELEASE_ID=$(echo "$RESP_BODY" | jq -r '.id')
-          if [ "$GITEE_RELEASE_ID" == "null" ]; then
-            echo "❌ 无法解析Release ID"
-            echo "响应内容: $RESP_BODY"
+          # 关键修复：等待Gitee后端同步 + 重新获取有效的Release ID
+          echo "⏳ 等待Gitee数据同步..."
+          sleep 5
+          
+          # 重新查询确认Release存在
+          VALIDATE_RESULT=$(curl -s -H "Authorization: token $GITEE_TOKEN" \
+            "$GITEE_API/releases/tags/$RELEASE_TAG")
+          
+          if ! echo "$VALIDATE_RESULT" | jq -e '.id' >/dev/null 2>&1; then
+            echo "❌ Release创建后未同步，无法继续"
             exit 1
           fi
           
-          echo "✅ Gitee Release创建成功（ID: $GITEE_RELEASE_ID）"
+          # 使用重新查询到的ID（避免创建时的临时ID失效）
+          GITEE_RELEASE_ID=$(echo "$VALIDATE_RESULT" | jq -r '.id')
+          echo "✅ 确认Release有效 (最终ID: $GITEE_RELEASE_ID)"
           
           # ==============================
-          # 3. 上传APK附件
+          # 3. 上传APK附件（修复404核心）
           # ==============================
           if [ "$ASSET_COUNT" -eq 0 ]; then
             echo "🎉 同步完成（无附件）"
-            echo "   访问：https://gitee.com/mayixuanemail-web/lulema/releases"
             exit 0
           fi
           
-          echo "📦 开始上传附件..."
-          
-          # 遍历每个附件
+          echo "📦 开始上传APK附件..."
           jq -c '.assets[]' release_info.json | while read -r asset; do
             ASSET_NAME=$(echo "$asset" | jq -r '.name')
             ASSET_CONTENT_TYPE=$(echo "$asset" | jq -r '.contentType')
-            ASSET_SIZE=$(echo "$asset" | jq -r '.size')
           
             echo "======================"
-            echo "   处理: $ASSET_NAME"
-            echo "   大小: $ASSET_SIZE 字节"
+            echo "   处理文件: $ASSET_NAME"
           
-            # 下载（带重试）
-            echo "   🔽 正在下载..."
-            for i in {1..3}; do
-              if gh release download "$RELEASE_TAG" \
-                --repo "mayixuanemail-web/lulema" \
-                --pattern "$ASSET_NAME" \
-                --output "$ASSET_NAME" \
-                --clobber 2>/dev/null; then
-                break
-              fi
-              echo "   下载失败，重试 $i/3..."
-              sleep 2
-            done
+            # 下载APK
+            echo "   🔽 下载APK..."
+            gh release download "$RELEASE_TAG" \
+              --repo "mayixuanemail-web/lulema" \
+              --pattern "$ASSET_NAME" \
+              --output "$ASSET_NAME" \
+              --clobber
           
-            # 验证文件
             if [ ! -f "$ASSET_NAME" ]; then
-              echo "   ❌ 下载失败，跳过此文件"
+              echo "   ❌ 下载失败，跳过"
               continue
             fi
           
-            DOWNLOADED_SIZE=$(stat -c%s "$ASSET_NAME" 2>/dev/null || stat -f%z "$ASSET_NAME")
-            if [ "$DOWNLOADED_SIZE" != "$ASSET_SIZE" ]; then
-              echo "   ⚠️  文件大小不匹配 (期望: $ASSET_SIZE, 实际: $DOWNLOADED_SIZE)"
-            else
-              echo "   ✅ 下载验证通过"
-            fi
+            # 核心修复：使用Gitee官方推荐的附件上传API格式
+            UPLOAD_URL="$GITEE_API/releases/$GITEE_RELEASE_ID/assets"
+            echo "   🔼 上传到: $UPLOAD_URL"
           
-            # 上传（带重试）
-            echo "   🔼 正在上传..."
+            # 上传（带详细调试）
             for i in {1..3}; do
-              UPLOAD_RESULT=$(curl -s -w "\nHTTP_STATUS:%{http_code}" -X POST \
+              echo "   上传尝试 $i/3..."
+              UPLOAD_RESPONSE=$(curl -v -s -X POST \
                 -H "Authorization: token $GITEE_TOKEN" \
-                -F "file=@$ASSET_NAME;type=$ASSET_CONTENT_TYPE" \
+                -F "file=@$ASSET_NAME" \
                 -F "name=$ASSET_NAME" \
-                "https://gitee.com/api/v5/repos/mayixuanemail-web/lulema/releases/$GITEE_RELEASE_ID/assets")
+                "$UPLOAD_URL")
           
-              UPLOAD_STATUS=$(echo "$UPLOAD_RESULT" | tail -n 1 | sed 's/HTTP_STATUS://')
-              UPLOAD_BODY=$(echo "$UPLOAD_RESULT" | sed '$d')
-          
-              if [ "$UPLOAD_STATUS" = "201" ] || [ "$UPLOAD_STATUS" = "200" ]; then
-                echo "   ✅ 上传成功！"
+              # 检查上传结果
+              if echo "$UPLOAD_RESPONSE" | jq -e '.id' >/dev/null 2>&1; then
+                echo "   ✅ 上传成功！ID: $(echo "$UPLOAD_RESPONSE" | jq -r '.id')"
                 break
+              elif [ $i -eq 3 ]; then
+                echo "   ❌ 上传失败（3次重试耗尽）"
+                echo "   响应内容: $UPLOAD_RESPONSE"
+              else
+                echo "   ⚠️  上传失败，5秒后重试..."
+                sleep 5
               fi
-          
-              echo "   上传失败 (状态码: $UPLOAD_STATUS)，重试 $i/3..."
-              sleep 3
             done
           
-            # 清理
             rm -f "$ASSET_NAME"
           done
           
           echo "======================"
           echo "🎉 全部同步完成！"
-          echo "   访问地址：https://gitee.com/mayixuanemail-web/lulema/releases"
+          echo "   Gitee Release地址: https://gitee.com/mayixuanemail-web/lulema/releases/tag/$RELEASE_TAG"
