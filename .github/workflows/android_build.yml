@@ -12,7 +12,6 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    # 新增：输出Release的tag名，供后续同步使用
     outputs:
       release_tag: ${{ steps.create_release.outputs.tag_name }}
 
@@ -73,7 +72,7 @@ jobs:
           path: app/build/outputs/apk/release/app-release-v1.0.${{ github.run_number }}.apk
 
       - name: Release APK
-        id: create_release  # 新增：给Release步骤添加id，用于输出tag_name
+        id: create_release
         uses: softprops/action-gh-release@v1
         if: github.event_name == 'push'
         with:
@@ -86,11 +85,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # 新增：同步到Gitee镜像的Job，仅在build成功后执行
   sync-to-gitee:
     runs-on: ubuntu-latest
-    needs: build  # 核心依赖：只有打包发布成功，才会运行同步
-    if: github.event_name == 'push'  # 仅在push时同步，PR时不执行
+    needs: build
+    if: github.event_name == 'push'
     steps:
       - name: 检出仓库全量历史
         uses: actions/checkout@v4
@@ -101,15 +99,17 @@ jobs:
       - name: 全量同步代码、分支、Tags到Gitee镜像
         uses: wearerequired/git-mirror-action@v1
         with:
-          source-repo: "https://github.com/${{ github.repository }}.git"
-          destination-repo: "https://${{ github.repository_owner }}:${{ secrets.GITEE_PAT }}@gitee.com/${{ github.repository }}.git"
-          force-push: true  # 纯镜像场景强制覆盖，保证两边完全一致
+          # 硬编码：GitHub源仓库地址
+          source-repo: "https://github.com/mayixuanemail-web/lulema.git"
+          # 硬编码：Gitee目标仓库地址
+          destination-repo: "https://mayixuanemail-web:${{ secrets.GITEE_PAT }}@gitee.com/mayixuanemail-web/lulema.git"
+          force-push: true
 
       - name: 同步本次Release到Gitee
         uses: yanglbme/gitee-pages-action@main
         with:
-          gitee-username: ${{ github.repository_owner }}
-          gitee-token: ${{ secrets.GITEE_PAT }}
-          repository: ${{ github.repository }}
+          gitee-username: mayixuanemail-web  # 硬编码：Gitee用户名
+          gitee-token: ${{ secrets.GITEE_TOKEN }}
+          repository: mayixuanemail-web/lulema  # 硬编码：Gitee仓库路径
           sync-release: true
           release-tag: ${{ needs.build.outputs.release_tag }}
